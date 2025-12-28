@@ -1,1 +1,4 @@
 # RGXAR
+
+config.js
+.env

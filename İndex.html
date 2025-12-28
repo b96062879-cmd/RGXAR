@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RGXAR AI</title>
+
+<style>
+:root{--bg:#0a0a0a;--panel:#111;--text:#fff;--accent:#0ff;--sec:#333;--input:#222}
+body.light{--bg:#f4f4f4;--panel:#fff;--text:#000;--accent:#00cccc;--sec:#ccc;--input:#eee}
+body{margin:0;font-family:Segoe UI,Arial;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+
+/* LOGIN */
+#login{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.box{background:var(--panel);padding:25px;border-radius:14px;width:380px}
+h3{margin:10px 0}
+input,textarea,select{width:100%;padding:12px;margin-top:8px;border-radius:8px;border:1px solid var(--sec);background:var(--input);color:var(--text)}
+button{width:100%;padding:12px;margin-top:10px;border:0;border-radius:8px;background:var(--accent);font-weight:700;cursor:pointer}
+
+/* CHAT */
+#chat{display:none;height:100vh}
+#main{flex:1;display:flex;flex-direction:column}
+#msgs{flex:1;padding:15px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:75%;padding:12px;border-radius:10px}
+.user{align-self:flex-end;background:var(--accent);color:#000}
+.ai{align-self:flex-start;background:var(--panel);border:1px solid var(--accent)}
+#send{display:flex;gap:10px;padding:12px;border-top:1px solid var(--sec)}
+#send textarea{flex:1;font-size:17px;height:90px;resize:none}
+
+/* SETTINGS */
+#gear{position:fixed;right:15px;top:15px;width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);font-size:22px;cursor:pointer;z-index:50}
+#settings{position:fixed;right:-300px;top:0;width:300px;height:100%;background:var(--panel);padding:15px;transition:.3s}
+#settings.open{right:0}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="box">
+    <h3>Kayıt Ol</h3>
+    <input id="re" placeholder="E-mail">
+    <input id="rp" type="password" placeholder="Şifre (min 6)">
+    <input id="rc" placeholder="Captcha">
+    <div id="rct"></div>
+    <button id="reg">Kayıt</button>
+
+    <h3>Giriş Yap</h3>
+    <input id="le" placeholder="E-mail">
+    <input id="lp" type="password" placeholder="Şifre">
+    <input id="lc" placeholder="Captcha">
+    <div id="lct"></div>
+    <button id="log">Giriş</button>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div id="chat">
+  <button id="gear">⚙</button>
+
+  <div id="settings">
+    <h3>Ayarlar</h3>
+    <label>Tema</label>
+    <select id="theme">
+      <option value="dark">Dark</option>
+      <option value="light">Light</option>
+    </select>
+
+    <label>Müzik URL</label>
+    <input id="music" placeholder="https://site/mp3">
+    <button id="play">Çal / Durdur</button>
+  </div>
+
+  <div id="main">
+    <div id="msgs"></div>
+    <div id="send">
+      <textarea id="msg" placeholder="Cheat / mesaj yaz (paragraf serbest)"></textarea>
+      <button id="sendBtn">Gönder</button>
+    </div>
+  </div>
+</div>
+
+<audio id="player"></audio>
+
+<script type="module">
+import { API_KEY } from "./config.js";
+
+/* ELEMENTS */
+const qs=id=>document.getElementById(id);
+const login=qs("login"),chat=qs("chat"),msgs=qs("msgs");
+const re=qs("re"),rp=qs("rp"),rc=qs("rc"),rct=qs("rct");
+const le=qs("le"),lp=qs("lp"),lc=qs("lc"),lct=qs("lct");
+const msg=qs("msg");
+
+/* CAPTCHA */
+let r=Math.floor(Math.random()*9000+1000),l=Math.floor(Math.random()*9000+1000);
+rct.innerText="Doğrula: "+r; lct.innerText="Doğrula: "+l;
+
+/* AUTO LOGIN */
+if(localStorage.user){
+  login.style.display="none";chat.style.display="flex";
+  add("RGXAR AI’ye Hoşgeldin 😘","ai");
+}
+
+/* REGISTER */
+qs("reg").onclick=()=>{
+  if(rp.value.length<6) return alert("Şifre min 6");
+  if(+rc.value!==r) return alert("Captcha yanlış");
+  localStorage.user=JSON.stringify({e:re.value,p:rp.value});
+  login.style.display="none";chat.style.display="flex";
+  add("RGXAR AI’ye Hoşgeldin 😘","ai");
+};
+
+/* LOGIN */
+qs("log").onclick=()=>{
+  const d=JSON.parse(localStorage.user||"{}");
+  if(le.value!==d.e||lp.value!==d.p) return alert("Hatalı");
+  if(+lc.value!==l) return alert("Captcha yanlış");
+  login.style.display="none";chat.style.display="flex";
+  add("RGXAR AI’ye Hoşgeldin 😘","ai");
+};
+
+/* ADD MSG */
+function add(t,c){
+  const d=document.createElement("div");
+  d.className="msg "+c; d.innerText=t;
+  msgs.appendChild(d); msgs.scrollTop=999999;
+}
+
+/* SEND */
+qs("sendBtn").onclick=async()=>{
+  if(!msg.value) return;
+  add(msg.value,"user");
+  const hold=document.createElement("div");
+  hold.className="msg ai"; hold.innerText="...";
+  msgs.appendChild(hold);
+  const text=msg.value; msg.value="";
+  try{
+    const r=await fetch("https://api.openai.com/v1/chat/completions",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json","Authorization":"Bearer "+API_KEY },
+      body:JSON.stringify({model:"gpt-4o-mini",messages:[{role:"user",content:text}]})
+    });
+    const j=await r.json();
+    hold.innerText=j.choices[0].message.content;
+  }catch{hold.innerText="API Hatası";}
+};
+
+/* SETTINGS */
+qs("gear").onclick=()=>qs("settings").classList.toggle("open");
+qs("theme").onchange=e=>document.body.classList.toggle("light",e.target.value==="light");
+const player=qs("player");
+qs("play").onclick=()=>{ if(player.paused){player.src=qs("music").value;player.play()}else player.pause() }
+</script>
+
+</body>
+  </html>
